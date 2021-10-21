@@ -8,9 +8,18 @@
  * 5. Retorna o token e as infos do usuário
  */
 import axios from "axios";
+import { sign } from "jsonwebtoken";
+import prismaClient from "../prisma";
 
 interface IAccessTokenResponse {
    access_token: string;
+}
+
+interface IUserResponse {
+   avatar_url: string,
+   login: string,
+   id: number,
+   name: string,
 }
 
 class AuthenticateUserService {
@@ -28,13 +37,44 @@ class AuthenticateUserService {
          }
       });
 
-      const response = await axios.get("https://api.github.com/user", {
+      const response = await axios.get<IUserResponse>("https://api.github.com/user", {
          headers: {
             authorization: `Bearer ${accessTokenResponse.access_token}`
          }
       });
 
-      return response.data;
+      const { login, id, avatar_url, name } = response.data;
+
+      let user = await prismaClient.user.findFirst({
+         where: {
+            github_id: id
+         }
+      });
+
+      if (!user) {
+         user = await prismaClient.user.create({
+            data: {
+               name,
+               login,
+               avatar_url,
+               github_id: id,
+            }
+         });
+      }
+
+      const token = sign({
+         user: {
+            name: user.name,
+            avatar_url: user.avatar_url,
+            id: user.id
+         }
+      }, process.env.JWT_SECRET_KEY, {
+         subject: user.id,
+         expiresIn: "1d"
+      });
+
+      return { token, user };
+
    }
 }
 
