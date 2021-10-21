@@ -26,6 +26,7 @@ class AuthenticateUserService {
    async execute(code: string) {
       const url = "https://github.com/login/oauth/access_token";
 
+      // Faz uma chamada para o github para buscar o access_token que irá autenticar o usuário
       const { data: accessTokenResponse } = await axios.post<IAccessTokenResponse>(url, null, {
          params: {
             client_id: process.env.GITHUB_CLIENT_ID,
@@ -37,6 +38,7 @@ class AuthenticateUserService {
          }
       });
 
+      // Realiza a chamada para a api do github para buscar as informações do usuário
       const response = await axios.get<IUserResponse>("https://api.github.com/user", {
          headers: {
             authorization: `Bearer ${accessTokenResponse.access_token}`
@@ -45,12 +47,14 @@ class AuthenticateUserService {
 
       const { login, id, avatar_url, name } = response.data;
 
+      // Realiza uma consulta no banco de dados para encontrar usuário 
       let user = await prismaClient.user.findFirst({
          where: {
             github_id: id
          }
       });
 
+      // Caso não exista um usuário, realiza a criação
       if (!user) {
          user = await prismaClient.user.create({
             data: {
@@ -62,6 +66,7 @@ class AuthenticateUserService {
          });
       }
 
+      // Gera um token para o usuário logado
       const token = sign({
          user: {
             name: user.name,
